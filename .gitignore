@@ -1,0 +1,7 @@
+.pypirc
+*.pyc
+\norfetool.egg-info
+\figure
+\build
+\dist
+\Data
