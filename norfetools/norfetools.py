@@ -36,9 +36,20 @@ mpl.rcParams.update({
     'legend.fancybox': True          # 若为True则边框为圆角，False为直角
 })
 
+
+mpl.rcParams.update({
+    'axes.labelsize': 8,        # x/y 轴标签字体大小
+    'xtick.labelsize': 8,       # x轴刻度字体
+    'ytick.labelsize': 8,       # y轴刻度字体
+    'legend.fontsize': 8,       # 图例字体大小
+    'axes.titlesize': 8         # 标题字体大小（若使用）
+})
+
+
+
 # 默认的DPI设置，用于保存图像
 DPI_SAVE = 800
-
+CM = 1 / 2.54  # 1 英寸 = 2.54 厘米
 
 @contextmanager
 def Set_style(styles = ["science", "nature", "grid"]):

@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='norfetool',
-    version="1.2.2",
+    version="1.2.4",
     description=(
         "Enhanced figure customization by adding a dedicated algorithm to adjust colorbar tick directions and styles, enabling inward or outward ticks with configurable length and width. This complements existing tools for SCI figure creation using PIL and pkl files, and further simplifies plt style settings. Also improved Slurm script management with flexible base file content replacement."
     ),
