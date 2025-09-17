@@ -1,5 +1,5 @@
 # norfetools/__init__.py
-
+from typing import Optional
 
 from .Bibcleaner import Bib
 from .FileTools import Sl
@@ -23,6 +23,40 @@ from .norfetools import (
 )
 
 
+from .colors import (
+    ALL_CARDS as _ALL_CARDS,
+    CLL as _CLL,
+    get_cmap_by_index as _get_cmap_by_index,
+    make_dark_light_dark as _make_dark_light_dark,
+)
+
+# ---- Public aliases (what users import as `nt`) ----
+# 常用：行向量色卡矩阵
+CCL = _CLL              # 你要求的名字：nt.CCL
+
+# 生成单一卡 / 对撞卡的公开 API（名字按你的要求）
+def get_cmap_one(
+    idx: int,
+    reverse: bool = False,
+    name: Optional[str] = None,
+    discrete: Optional[int] = None,
+):
+    """Wrapper to colors.get_cmap_by_index"""
+    return _get_cmap_by_index(idx, reverse=reverse, name=name, discrete=discrete)
+
+def get_cmap_two(
+    id1: int,
+    id2: int,
+    name: Optional[str] = None,
+    drop_duplicate: bool = True,
+    discrete: Optional[int] = None,
+):
+    """Wrapper to colors.make_dark_light_dark"""
+    return _make_dark_light_dark(
+        id1, id2, name=name, drop_duplicate=drop_duplicate, discrete=discrete
+    )
+
+
 __all__ = ['Bib', 
             'Sl',
             "Set_colorbar_ticks_inward",
@@ -38,6 +72,10 @@ __all__ = ['Bib',
             "SaveData",
             "LoadData",
             "Ensure_directory_exists",
+            "CCL",
+            "ALL_CARDS",
+            "get_cmap_one",
+            "get_cmap_two",
             ]
 
 
