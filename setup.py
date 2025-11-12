@@ -5,9 +5,10 @@ from setuptools import setup, find_packages
 
 setup(
     name='norfetool',
-    version="1.3.0",
+    version="1.3.4",
     description=(
-        "Add colors."
+        "Finish Arial Control."
+        "Fixed scg fonts!"
     ),
     # long_description=open('README.rst').read(),
     author='norfe',

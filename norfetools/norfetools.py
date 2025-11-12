@@ -12,6 +12,7 @@ import matplotlib as mpl
 from contextlib import contextmanager
 import warnings
 
+import matplotlib.font_manager as fm
 
 try:
     # plt.style.use(["science", "grid"])
@@ -42,7 +43,10 @@ mpl.rcParams.update({
     'xtick.labelsize': 8,       # x轴刻度字体
     'ytick.labelsize': 8,       # y轴刻度字体
     'legend.fontsize': 8,       # 图例字体大小
-    'axes.titlesize': 8         # 标题字体大小（若使用）
+    'axes.titlesize': 8,        # 标题字体大小（若使用）
+    'pdf.fonttype': 42,         # 保留可编辑文字
+    'ps.fonttype': 42,
+    'svg.fonttype': 'path',     # 导出SVG时把文字转为路径，避免AI显示虚化
 })
 
 
@@ -89,12 +93,29 @@ def Save_Fig(flag, path, filepath="figure/"):
                 plt.savefig(filename, bbox_inches='tight', dpi=DPI_SAVE)
 
             # 改变风格后再保存
-            with Set_style():
+            with Set_style(["science", "nature",]):
+
+                mpl.rcParams.update({
+                    "text.usetex": True,  # 启用 LaTeX 渲染
+                    "font.family": "sans-serif",
+                    "font.sans-serif": ["Arial", "Arial Unicode MS", "Helvetica", "DejaVu Sans"],  # 你的无衬线候选
+                    "text.latex.preamble": r"""
+                        \usepackage{amsmath}
+                        \usepackage{amssymb}
+                        \usepackage{newtxsf}  % 无衬线数学字体，含希腊字母
+                        \renewcommand{\familydefault}{\sfdefault}
+                    """,
+                })
+
+                alt_dir = os.path.join(filepath, "altstyle")
+                os.makedirs(alt_dir, exist_ok=True)
+
                 for fmt in formats:
-                    filename = f"{base_path}_altstyle.{fmt}"
+                    filename = os.path.join(alt_dir, f"{base}.{fmt}")
                     plt.savefig(filename, bbox_inches='tight', dpi=DPI_SAVE)
 
             plt.close()
+
         else:
             # 标准保存流程
             plt.savefig(os.path.join(filepath, path), bbox_inches='tight', dpi=DPI_SAVE)
@@ -297,3 +318,4 @@ def Load_data(filename='temp_data_list.pkl'):
 
 SaveData = Save_data
 LoadData = Load_data
+
