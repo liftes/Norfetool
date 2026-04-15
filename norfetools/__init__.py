@@ -11,6 +11,7 @@ from .norfetools import (
     Set_colorbar_ticks_outward,
     Set_axis_formatting,
     SetColor,
+    CreateFigure,
     TestColorList,
     Save_Fig,
     SaveFig,

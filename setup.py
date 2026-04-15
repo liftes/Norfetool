@@ -5,10 +5,12 @@ from setuptools import setup, find_packages
 
 setup(
     name='norfetool',
-    version="1.3.4",
+    version="1.4.0",
     description=(
         "Finish Arial Control."
         "Fixed scg fonts!"
+        "pt refresh!"
+        "New Size Control!"
     ),
     # long_description=open('README.rst').read(),
     author='norfe',
@@ -33,6 +35,10 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Software Development :: Libraries'
     ],
     install_requires=[
@@ -40,5 +46,5 @@ setup(
         'numpy',
     ]
 )
-
+# python setup.py sdist
 # twine upload -u __token__ -p pypi-token dist/*

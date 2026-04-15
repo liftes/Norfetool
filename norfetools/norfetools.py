@@ -20,6 +20,9 @@ try:
 except OSError:
     warnings.warn(f"Matplotlib style load failed. Using default style.", UserWarning)
 
+# 默认的DPI设置，用于保存图像
+DPI_SAVE = 800
+CM = 1 / 2.54  # 1 英寸 = 2.54 厘米
 
 # 设置网格透明度为0.2
 mpl.rcParams.update({
@@ -39,21 +42,23 @@ mpl.rcParams.update({
 
 
 mpl.rcParams.update({
-    'axes.labelsize': 8,        # x/y 轴标签字体大小
-    'xtick.labelsize': 8,       # x轴刻度字体
-    'ytick.labelsize': 8,       # y轴刻度字体
-    'legend.fontsize': 8,       # 图例字体大小
-    'axes.titlesize': 8,        # 标题字体大小（若使用）
+    'axes.labelsize': 7,        # x/y 轴标签字体大小
+    'xtick.labelsize': 7,       # x轴刻度字体
+    'ytick.labelsize': 7,       # y轴刻度字体
+    'legend.fontsize': 7,       # 图例字体大小
+    'axes.titlesize': 7,        # 标题字体大小（若使用）
     'pdf.fonttype': 42,         # 保留可编辑文字
     'ps.fonttype': 42,
     'svg.fonttype': 'path',     # 导出SVG时把文字转为路径，避免AI显示虚化
 })
 
+# ===============================
+# 默认 figure 尺寸（8 cm × 6 cm）
+# ===============================
+mpl.rcParams.update({
+    "figure.figsize": (8 * CM, 6 * CM),  # 单位：inch
+})
 
-
-# 默认的DPI设置，用于保存图像
-DPI_SAVE = 800
-CM = 1 / 2.54  # 1 英寸 = 2.54 厘米
 
 @contextmanager
 def Set_style(styles = ["science", "nature", "grid"]):
@@ -125,6 +130,206 @@ def Save_Fig(flag, path, filepath="figure/"):
         plt.show()
 
 SaveFig = Save_Fig
+
+
+def CreateFigure(
+    *,
+    axesWidthCm: float,
+    axesHeightCm: float,
+    nRows: int = 1,
+    nCols: int = 1,
+    widthRatios: list[float] | None = None,
+    heightRatios: list[float] | None = None,
+    hGapCm: float = 0.20,
+    vGapCm: float = 0.20,
+    leftCm: float = 1.10,
+    rightCm: float = 0.20,
+    bottomCm: float = 0.85,
+    topCm: float = 0.10,
+    colorbarMode: str | None = None,   # None / "right" / "top"
+    colorbarGapCm: float = 0.20,
+    colorbarWidthCm: float = 0.20,     # 右侧色卡宽度
+    colorbarHeightCm: float | None = None,
+    colorbarTopHeightCm: float = 0.20, # 顶部色卡高度
+    colorbarAlign: str = "center",     # center / full
+    dpi: int = 72,
+):
+    """
+    创建一个尺寸严格可控的 Figure 布局。
+
+    规则
+    ----------
+    1. 若 nRows = nCols = 1，则 axesWidthCm / axesHeightCm 表示单个 ax 的尺寸。
+    2. 若为多图，则 axesWidthCm / axesHeightCm 表示所有子图拼接后的总矩形区域尺寸。
+    3. colorbar 使用单独的 Axes(cax) 控制位置和尺寸。
+
+    返回
+    ----------
+    fig : matplotlib.figure.Figure
+    axes :
+        若单图则返回单个 Axes；
+        若多图则返回 shape=(nRows, nCols) 的 ndarray[Axes]
+    cax :
+        若未设置 colorbar，则返回 None；
+        否则返回 colorbar 的 Axes
+    layoutInfo : dict
+        返回关键尺寸和每个 axes 的位置，便于调试
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    if nRows <= 0 or nCols <= 0:
+        raise ValueError("nRows 和 nCols 必须为正整数。")
+
+    if widthRatios is None:
+        widthRatios = [1.0] * nCols
+    if heightRatios is None:
+        heightRatios = [1.0] * nRows
+
+    if len(widthRatios) != nCols:
+        raise ValueError("widthRatios 的长度必须等于 nCols。")
+    if len(heightRatios) != nRows:
+        raise ValueError("heightRatios 的长度必须等于 nRows。")
+
+    widthRatiosArr = np.asarray(widthRatios, dtype=float)
+    heightRatiosArr = np.asarray(heightRatios, dtype=float)
+
+    if np.any(widthRatiosArr <= 0):
+        raise ValueError("widthRatios 中所有值都必须为正。")
+    if np.any(heightRatiosArr <= 0):
+        raise ValueError("heightRatios 中所有值都必须为正。")
+
+    isSingleAxes = (nRows == 1 and nCols == 1)
+
+    if isSingleAxes:
+        axesTotalWidthCm = float(axesWidthCm)
+        axesTotalHeightCm = float(axesHeightCm)
+        axWidthsCm = np.array([axesTotalWidthCm], dtype=float)
+        axHeightsCm = np.array([axesTotalHeightCm], dtype=float)
+    else:
+        axesTotalWidthCm = float(axesWidthCm)
+        axesTotalHeightCm = float(axesHeightCm)
+
+        totalHGapCm = (nCols - 1) * hGapCm
+        totalVGapCm = (nRows - 1) * vGapCm
+
+        availableWidthCm = axesTotalWidthCm - totalHGapCm
+        availableHeightCm = axesTotalHeightCm - totalVGapCm
+
+        if availableWidthCm <= 0:
+            raise ValueError("axesWidthCm 过小，扣除水平间距后剩余宽度非正。")
+        if availableHeightCm <= 0:
+            raise ValueError("axesHeightCm 过小，扣除竖直间距后剩余高度非正。")
+
+        axWidthsCm = availableWidthCm * widthRatiosArr / np.sum(widthRatiosArr)
+        axHeightsCm = availableHeightCm * heightRatiosArr / np.sum(heightRatiosArr)
+
+    extraRightCm = 0.0
+    extraTopCm = 0.0
+
+    if colorbarMode is None:
+        pass
+    elif colorbarMode == "right":
+        extraRightCm = colorbarGapCm + colorbarWidthCm
+    elif colorbarMode == "top":
+        extraTopCm = colorbarGapCm + colorbarTopHeightCm
+    else:
+        raise ValueError("colorbarMode 只能取 None、'right' 或 'top'。")
+
+    figWidthCm = leftCm + axesTotalWidthCm + rightCm + extraRightCm
+    figHeightCm = bottomCm + axesTotalHeightCm + topCm + extraTopCm
+
+    fig = plt.figure(figsize=(figWidthCm / 2.54, figHeightCm / 2.54), dpi=dpi)
+
+    axesArray = np.empty((nRows, nCols), dtype=object)
+    axesRects = []
+
+    xStartsCm = [leftCm]
+    for col in range(1, nCols):
+        xStartsCm.append(xStartsCm[-1] + axWidthsCm[col - 1] + hGapCm)
+
+    yStartsCm = [bottomCm]
+    for row in range(1, nRows):
+        yStartsCm.append(yStartsCm[-1] + axHeightsCm[row - 1] + vGapCm)
+
+    # matplotlib 的 y 从底部开始；为了保持 axes[0,0] 在左上，需倒序放置
+    for row in range(nRows):
+        for col in range(nCols):
+            x0Cm = xStartsCm[col]
+            y0Cm = bottomCm + np.sum(axHeightsCm[row + 1:]) + (nRows - 1 - row) * vGapCm
+
+            rect = [
+                x0Cm / figWidthCm,
+                y0Cm / figHeightCm,
+                axWidthsCm[col] / figWidthCm,
+                axHeightsCm[row] / figHeightCm,
+            ]
+            axesArray[row, col] = fig.add_axes(rect)
+            axesRects.append({
+                "row": row,
+                "col": col,
+                "x0Cm": x0Cm,
+                "y0Cm": y0Cm,
+                "widthCm": axWidthsCm[col],
+                "heightCm": axHeightsCm[row],
+            })
+
+    cax = None
+    caxRect = None
+
+    if colorbarMode == "right":
+        if colorbarAlign == "full":
+            cbarHeightUseCm = axesTotalHeightCm
+            cbarBottomCm = bottomCm
+        else:
+            cbarHeightUseCm = axesTotalHeightCm if colorbarHeightCm is None else float(colorbarHeightCm)
+            if cbarHeightUseCm > axesTotalHeightCm:
+                raise ValueError("colorbarHeightCm 不能大于 axes 总高度。")
+            cbarBottomCm = bottomCm + 0.5 * (axesTotalHeightCm - cbarHeightUseCm)
+
+        caxRect = [
+            (leftCm + axesTotalWidthCm + colorbarGapCm) / figWidthCm,
+            cbarBottomCm / figHeightCm,
+            colorbarWidthCm / figWidthCm,
+            cbarHeightUseCm / figHeightCm,
+        ]
+        cax = fig.add_axes(caxRect)
+
+    elif colorbarMode == "top":
+        caxRect = [
+            leftCm / figWidthCm,
+            (bottomCm + axesTotalHeightCm + colorbarGapCm) / figHeightCm,
+            axesTotalWidthCm / figWidthCm,
+            colorbarTopHeightCm / figHeightCm,
+        ]
+        cax = fig.add_axes(caxRect)
+
+    if isSingleAxes:
+        axesOut = axesArray[0, 0]
+    else:
+        axesOut = axesArray
+
+    layoutInfo = {
+        "isSingleAxes": isSingleAxes,
+        "figWidthCm": figWidthCm,
+        "figHeightCm": figHeightCm,
+        "axesTotalWidthCm": axesTotalWidthCm,
+        "axesTotalHeightCm": axesTotalHeightCm,
+        "axWidthsCm": axWidthsCm,
+        "axHeightsCm": axHeightsCm,
+        "leftCm": leftCm,
+        "rightCm": rightCm,
+        "bottomCm": bottomCm,
+        "topCm": topCm,
+        "hGapCm": hGapCm,
+        "vGapCm": vGapCm,
+        "colorbarMode": colorbarMode,
+        "colorbarRect": caxRect,
+        "axesRects": axesRects,
+    }
+
+    return fig, axesOut, cax, layoutInfo
+
 
 def TestColorList(clist):
     """
