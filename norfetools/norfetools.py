@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from typing import Optional, Sequence, Tuple
 from matplotlib.gridspec import GridSpec
 from PIL import Image
 
@@ -86,8 +87,13 @@ def Save_Fig(flag, path, filepath="figure/"):
 
     # 若为True或int类型
     if flag:
+
         if not os.path.isdir(filepath):
             os.makedirs(filepath)
+
+        preamble = mpl.rcParams.get("text.latex.preamble", "")
+        if r"\usepackage{bm}" not in preamble:
+            mpl.rcParams["text.latex.preamble"] = preamble + "\n" + r"\usepackage{bm}"
 
         if isinstance(flag, int) and flag == 2:
             formats = ['png', 'svg']
@@ -108,6 +114,7 @@ def Save_Fig(flag, path, filepath="figure/"):
                         \usepackage{amsmath}
                         \usepackage{amssymb}
                         \usepackage{newtxsf}  % 无衬线数学字体，含希腊字母
+                        \usepackage{bm}
                         \renewcommand{\familydefault}{\sfdefault}
                     """,
                 })
@@ -138,22 +145,22 @@ def CreateFigure(
     axesHeightCm: float,
     nRows: int = 1,
     nCols: int = 1,
-    widthRatios: list[float] | None = None,
-    heightRatios: list[float] | None = None,
+    widthRatios: Optional[Sequence[float]] = None,
+    heightRatios: Optional[Sequence[float]] = None,
     hGapCm: float = 0.20,
     vGapCm: float = 0.20,
     leftCm: float = 1.10,
     rightCm: float = 0.20,
     bottomCm: float = 0.85,
     topCm: float = 0.10,
-    colorbarMode: str | None = None,   # None / "right" / "top"
+    colorbarMode: Optional[str] = None,   # None / "right" / "top"
     colorbarGapCm: float = 0.20,
-    colorbarWidthCm: float = 0.20,     # 右侧色卡宽度
-    colorbarHeightCm: float | None = None,
-    colorbarTopHeightCm: float = 0.20, # 顶部色卡高度
-    colorbarAlign: str = "center",     # center / full
+    colorbarWidthCm: float = 0.20,        # 右侧色卡宽度
+    colorbarHeightCm: Optional[float] = None,
+    colorbarTopHeightCm: float = 0.20,    # 顶部色卡高度
+    colorbarAlign: str = "center",        # center / full
     dpi: int = 72,
-):
+) -> Tuple[plt.Figure, object, Optional[plt.Axes], dict]:
     """
     创建一个尺寸严格可控的 Figure 布局。
 
