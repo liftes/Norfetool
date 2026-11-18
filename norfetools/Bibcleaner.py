@@ -1,8 +1,11 @@
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 class Bib:
+    """BibTeX utilities with the legacy API and general name normalization."""
+
     FIELDS_TO_REMOVE = {
         'file', 'abstract', 'keywords', 'shorttitle', 'urldate',
         'langid', 'isbn', 'lccn', 'copyright'
@@ -79,43 +82,185 @@ class Bib:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n\n'.join(cleaned))
 
+    # These are name-format rules, not corrections of bibliographic metadata.
+    _SURNAME_PREFIXES = {
+        'van', 'von', 'de', 'del', 'della', 'da', 'das', 'do', 'dos',
+        'der', 'den', 'ter', 'ten', 'du', 'des', 'la', 'le',
+    }
+    _ORGANIZATION_WORDS = {
+        'academy', 'association', 'bank', 'center', 'centre', 'collaboration',
+        'committee', 'company', 'consortium', 'corporation', 'council',
+        'department', 'foundation', 'government', 'group', 'inc', 'institute',
+        'laboratory', 'limited', 'ltd', 'nations', 'network', 'organization',
+        'organisation', 'project', 'research', 'society', 'team', 'union',
+        'university', 'who', 'nasa', 'cern', 'oecd', 'unesco',
+    }
+    # Optional exact literal names for organizations not covered by the rules.
+    # Example: Bib.LITERAL_AUTHORS = {'Alpha Beta'}
+    LITERAL_AUTHORS = set()
+
+    @staticmethod
+    def _name_group_end(text, start):
+        """Return the end of one brace group, respecting escaped braces."""
+        if start >= len(text) or text[start] != '{':
+            raise ValueError('Expected a brace group in an author name')
+        depth, pos = 1, start + 1
+        while pos < len(text):
+            if text[pos] == '\\':
+                pos += 2
+                continue
+            depth += (text[pos] == '{') - (text[pos] == '}')
+            if depth == 0:
+                return pos + 1
+            pos += 1
+        raise ValueError('Unbalanced braces in an author name')
+
+    @staticmethod
+    def _split_name_parts(text, separator=','):
+        """Split an author/list outside protected brace groups only."""
+        result, start, pos, depth = [], 0, 0, 0
+        while pos < len(text):
+            char = text[pos]
+            if char == '\\':
+                pos += 2
+                continue
+            depth += (char == '{') - (char == '}')
+            if depth < 0:
+                raise ValueError('Unexpected closing brace in an author name')
+            if depth == 0:
+                if separator == 'and':
+                    match = re.match(r'\s+and\s+', text[pos:], re.IGNORECASE)
+                    size = len(match.group(0)) if match else 0
+                else:
+                    size = 1 if char == separator else 0
+                if size:
+                    result.append(text[start:pos].strip())
+                    pos += size
+                    start = pos
+                    continue
+            pos += 1
+        if depth:
+            raise ValueError('Unbalanced braces in an author name')
+        result.append(text[start:].strip())
+        return result
+
     @classmethod
     def _split_authors_safe(cls, s):
-        authors, buffer, brace_level, i = [], '', 0, 0
-        while i < len(s):
-            if s[i:i+5] == ' and ' and brace_level == 0:
-                authors.append(buffer.strip())
-                buffer, i = '', i + 5
+        return cls._split_name_parts(s, 'and')
+
+    @classmethod
+    def _looks_like_person(cls, name):
+        """Recognize common braced Latin personal names conservatively.
+
+        This is a formatting heuristic, not a verification of identity or
+        cultural name order. Explicit comma form is preferred for ambiguity;
+        use LITERAL_AUTHORS for exceptional organization/literal names.
+        """
+        if name in cls.LITERAL_AUTHORS:
+            return False
+        if re.search(r'\s+and\s+|\d|[&;]', name, re.IGNORECASE):
+            return False
+        tokens = re.sub(r'[{},]', ' ', name).split()
+        if not 2 <= len(tokens) <= 7:
+            return False
+        if any(t.casefold().strip('.') in cls._ORGANIZATION_WORDS for t in tokens):
+            return False
+        for token in tokens:
+            if token.casefold().strip('.') in cls._SURNAME_PREFIXES | {'jr', 'sr', 'ii', 'iii', 'iv'}:
                 continue
-            buffer += s[i]
-            brace_level += (s[i] == '{') - (s[i] == '}')
-            i += 1
-        if buffer:
-            authors.append(buffer.strip())
-        return authors
+            letters = ''.join(c for c in token if c.isalpha())
+            if not letters or not all('LATIN' in unicodedata.name(c, '') for c in letters):
+                return False
+            if not letters[0].isupper() or (len(letters) > 1 and letters.isupper()):
+                return False
+        return True
+
+    @classmethod
+    def _normalize_author(cls, author):
+        author = author.strip()
+        if not author:
+            return author
+        if author in cls.LITERAL_AUTHORS:
+            return '{' + author + '}'
+        if author.startswith('{') and cls._name_group_end(author, 0) == len(author):
+            inner = author[1:-1]
+            if not cls._looks_like_person(inner):
+                return author
+            return cls._normalize_author(inner)
+
+        parts = cls._split_name_parts(author)
+        if len(parts) in (2, 3):
+            family, given = parts[0], parts[-1]
+            suffix = parts[1] if len(parts) == 3 else ''
+        elif len(parts) == 1:
+            tokens, pos = [], 0
+            while pos < len(author):
+                if author[pos].isspace():
+                    pos += 1
+                    continue
+                start = pos
+                while pos < len(author) and not author[pos].isspace():
+                    if author[pos] == '{':
+                        pos = cls._name_group_end(author, pos)
+                    elif author[pos] == '\\':
+                        pos += 2
+                    else:
+                        pos += 1
+                tokens.append(author[start:pos])
+            if not tokens:
+                return author
+            suffix = ''
+            if len(tokens) >= 3 and tokens[-1].casefold().strip('.') in {'jr', 'sr', 'ii', 'iii', 'iv'}:
+                suffix = tokens.pop()
+            split = len(tokens) - 1
+            for i, token in enumerate(tokens[:-1]):
+                if token.casefold() in cls._SURNAME_PREFIXES and (i > 0 or token[0].islower()):
+                    split = i
+                    break
+            given, family = ' '.join(tokens[:split]), ' '.join(tokens[split:])
+        else:
+            return author  # Do not guess about unusual comma structures.
+
+        # Normalize an explicit initials artifact; never expand to guessed names.
+        given = re.sub(r'\{\\relax\s+([A-Z]{2,5})\}',
+                       lambda m: ' '.join(c + '.' for c in m.group(1)), given)
+        if not family:
+            return author
+        result = [family]
+        if suffix:
+            result.append(suffix)
+        if given:
+            result.append(given)
+        return ', '.join(result)
 
     @classmethod
     def _clean_author(cls, raw):
-        if raw.startswith('{{') and raw.endswith('}}'):
-            raw = raw[1:-1]
-        elif raw.startswith('{') and raw.endswith('}'):
-            inner = raw[1:-1]
-            if ' and ' in inner:
-                raw = inner
+        """Accept both name orders and emit unambiguous Family, Given names.
 
-        authors = cls._split_authors_safe(raw)
-        cleaned = []
-        for author in authors:
-            author = author.strip()
-            if author.startswith('{') and author.endswith('}'):
-                inner = author[1:-1]
-                if inner.count('{') == inner.count('}'):
-                    author = inner
-            if ',' in author and author.count(',') == 1:
-                parts = [p.strip() for p in author.split(',', 1)]
-                author = f"{parts[1]} {parts[0]}"
-            cleaned.append(author)
-        return '{' + ' and '.join(cleaned) + '}'
+        Preserve author order/count, literal authors, accents and protected
+        surnames. No DOI lookups, metadata substitutions or deduplication.
+        """
+        value = raw.strip()
+        if value.startswith('{') and cls._name_group_end(value, 0) == len(value):
+            value = value[1:-1]
+        elif value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        authors = cls._split_authors_safe(value)
+        return '{' + ' and '.join(cls._normalize_author(a) for a in authors) + '}'
+
+    @staticmethod
+    def _capitalize_initial(text):
+        """Uppercase the first text letter without lowercasing the remainder.
+
+        Leave an initial protected group, TeX command or math expression
+        unchanged: its case can be intentional (for example, {pH}).
+        """
+        for index, char in enumerate(text):
+            if char in ('{', '$', chr(92)):
+                return text
+            if char.isalpha():
+                return text[:index] + char.upper() + text[index + 1:]
+        return text
 
     @classmethod
     def _format_journal(cls, journal):
@@ -129,7 +274,7 @@ class Bib:
                 formatted.append(word.lower())
             else:
                 formatted.append(word.capitalize())
-        return ' '.join(formatted)
+        return cls._capitalize_initial(' '.join(formatted))
 
     @classmethod
     def _parse_bib_file_lines(cls, input_path):
@@ -191,6 +336,13 @@ class Bib:
             if val.startswith('{') and val.endswith('}'):
                 val = val[1:-1]
             fields['journal'] = '{' + cls._format_journal(val) + '}'
+        if 'title' in fields:
+            val = fields['title']
+            # Skip only the field delimiter; preserve inner protection groups.
+            if val.startswith(('{', '"')):
+                fields['title'] = val[0] + cls._capitalize_initial(val[1:])
+            else:
+                fields['title'] = cls._capitalize_initial(val)
 
         new_entry = [header]
         for key in field_order:

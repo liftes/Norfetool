@@ -113,11 +113,11 @@ mpl.rcParams.update({
 })
 
 mpl.rcParams.update({
-    'axes.labelsize': 8,        # x/y 轴标签字体大小
-    'xtick.labelsize': 8,       # x轴刻度字体
-    'ytick.labelsize': 8,       # y轴刻度字体
-    'legend.fontsize': 8,       # 图例字体大小
-    'axes.titlesize': 8         # 标题字体大小（若使用）
+    'axes.labelsize': 7,        # x/y 轴标签字体大小
+    'xtick.labelsize': 7,       # x轴刻度字体
+    'ytick.labelsize': 7,       # y轴刻度字体
+    'legend.fontsize': 7,       # 图例字体大小
+    'axes.titlesize': 7         # 标题字体大小（若使用）
 })
 
 

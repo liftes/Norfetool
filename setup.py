@@ -5,13 +5,14 @@ from setuptools import setup, find_packages
 
 setup(
     name='norfetool',
-    version="1.4.2",
+    version="1.4.4",
     description=(
         "Finish Arial Control."
         "Fixed scg fonts!"
         "pt refresh!"
         "New Size Control!"
         "bm refresh!"
+        "Bib Update!"
     ),
     # long_description=open('README.rst').read(),
     author='norfe',
