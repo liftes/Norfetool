@@ -2,6 +2,7 @@
 from typing import Optional
 
 from .Bibcleaner import Bib
+from .TexBuilder import TexBuild
 from .FileTools import Sl
 
 
@@ -58,7 +59,7 @@ def get_cmap_two(
     )
 
 
-__all__ = ['Bib', 
+__all__ = ['Bib', 'TexBuild',
             'Sl',
             "Set_colorbar_ticks_inward",
             "Set_colorbar_ticks_outward",

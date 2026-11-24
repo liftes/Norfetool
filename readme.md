@@ -55,7 +55,7 @@
 ```python
 import matplotlib.pyplot as plt
 import numpy as np
-from norfe_draw import SaveFig, SetColor
+from norfetools import SaveFig, SetColor
 
 x = np.linspace(0, 2 * np.pi, 100)
 colors = SetColor("viridis", 3)
@@ -71,7 +71,7 @@ SaveFig(2, "sin_demo.png")  # 保存为多格式，包含两种风格
 
 ## 🧰 内置工具类说明
 
-本项目包含两个内置类 `Sl` 和 `Bib`，分别用于通用文件操作与 `.bib` 文献文件的自动清理。它们为项目的自动化、批处理和投稿准备提供便利支持。
+本项目提供 `Sl`、`Bib` 和 `TexBuild` 工具类，分别用于文件操作、参考文献清理和 LaTeX 编译。它们为项目的自动化、批处理和投稿准备提供便利支持。
 
 ---
 
@@ -137,8 +137,124 @@ SaveFig(2, "sin_demo.png")  # 保存为多格式，包含两种风格
 #### 🧪 示例：
 
 ```python
-from Bib import Bib
+from norfetools import Bib
 
 tex_files = Bib.find_all_tex_files("manuscript/")
 Bib.generate_clean_bib("library.bib", tex_files, "cleaned.bib")
 ```
+
+
+---
+
+## LaTeX 双版本构建：`TexBuild`（1.6.0）
+
+Python 3.9 及以上；真实编译另需 TeX Live/MiKTeX、`latexmk` 和对应引擎。
+模块不改写 tex 文件，不会在导入时自动编译，也不需要新 Python 依赖。
+
+```python
+from norfetools import TexBuild
+
+result = TexBuild.build(
+    texRootDir=r"C:\YourProject\Article",
+    texFiles=["Manuscript.tex", "SupportingInformation.tex"],
+    rtorTex="response/ResponsetoReviewers.tex",  # 可省略，默认 None
+    engine="pdflatex",
+    rtorEngine="xelatex",
+    buildDir="build",                         # 默认值，可省略
+    dryRun=True,                              # 先返回命令计划；False 才编译
+)
+
+for entry in result["commands"]:
+    print(entry["cwd"], entry["command"])
+```
+
+列表形式为同一批主文件生成清洁版和高亮版；也可以分别指定：
+
+```python
+texFiles = {
+    "clean": ["Manuscript.tex", "SupportingInformation.tex"],
+    "highlighted": ["Manuscript.tex"],
+}
+```
+
+只传一个模式即可只生成该版。各模式的主文件名（不含后缀）不能重复；最终 PDF 名称也不能冲突。
+路径相对显式的 `texRootDir` 解析，各主 tex 从自身目录编译，保留图片、子文件及 bib 的相对路径。
+默认正式输出如下，辅助文件分别保存在 `build/clean`、`build/highlighted` 和 `build/response`：
+
+```text
+build/Manuscript.pdf
+build/SupportingInformation.pdf
+build/HighlightedManuscript.pdf
+build/HighlightedSupportingInformation.pdf
+build/ResponsetoReviewers.pdf
+```
+
+1.6.0 新增可选参数 `flatOutput` 和 `highlightedPrefix`；不传时保留上述目录结构和命名。
+若希望所有 PDF 和编译辅助文件直接产生在 `build`，高亮版使用小写前缀：
+
+```python
+result = TexBuild.build(
+    texRootDir=r"C:\YourProject\Article",
+    texFiles=["Manuscript.tex", "SupportingInformation.tex"],
+    rtorTex="response/ResponsetoReviewers.tex",
+    buildDir="build",
+    flatOutput=True,
+    highlightedPrefix="highlighted",
+)
+```
+
+此时高亮版的 PDF、AUX、BBL 和日志统一使用 `highlightedManuscript` 等任务名，
+不再创建 `clean`、`highlighted`、`response` 子目录，也不依赖旧目录中的数据。
+前缀允许英文字母、数字、连字符和下划线；名称冲突会在编译前报错。
+平铺构建通过任务名区分主 AUX；若源文件使用 `\include`，还须自行区分两版的子 AUX 文件名。
+当前常用的 `\input` 子文件不生成独立 AUX，不受此限制。
+
+正文等文件先交替构建，直到所选主文件的 AUX 标签稳定；可用 `maxRounds` 调整上限（默认 6）。
+RtoR 最后编译，要求此次包含高亮模式，其页码/行号应读取高亮版的数据。
+最终检查 PDF/AUX/日志存在，以及常见的未定义引用、文献和重复标签警告。
+默认分目录模式在所有请求的编译成功后才复制正式 PDF；平铺模式直接写入最终位置。
+这些检查不是对引用内容正确性的审查。
+`result["outputs"]` 按模式和文件名返回 PDF 的 `Path`，`result["response"]` 返回可选回复 PDF；
+`result["compiled"]` 表示是否实际完成编译。失败抛出异常，由调用脚本处理，不调用 `sys.exit()`。
+
+### TeX 源文件配合约定
+
+默认向正文/SI 注入 `\ntbuildmode`（清洁 0、高亮 1）、`\ntauxdir`（当前模式的 AUX 目录）、
+`\ntauxprefix`（当前 AUX 任务名前缀）和 `\ntpdfprefix`（最终 PDF 前缀）。
+分目录模式的 AUX 前缀为空，平铺高亮版则使用 `highlightedPrefix`。
+源文件必须识别相应开关，不能假定任意 tex 都会自动出现修订颜色。可以用 `modeDefinitions`
+覆盖模式的 TeX 前置代码，例如 `{"clean": r"\def\showchanges{0}", "highlighted": r"\def\showchanges{1}"}`；
+目录和前缀仍会自动注入。正文引用 SI 的示例：
+
+```tex
+\providecommand{\ntauxdir}{./build}
+\providecommand{\ntauxprefix}{}
+\providecommand{\ntpdfprefix}{}
+\externaldocument[SI-]{\ntauxdir/\ntauxprefix SupportingInformation}[\ntpdfprefix SupportingInformation.pdf]
+```
+
+RtoR 接收 `\ntresponseauxdir` 和 `\ntresponseauxprefix`，始终指向高亮版的 AUX。
+在其导言区配置：
+
+```tex
+\providecommand{\ntresponseauxdir}{../build/highlighted}
+\providecommand{\ntresponseauxprefix}{}
+\externaldocument[M-]{\ntresponseauxdir/\ntresponseauxprefix Manuscript}
+\externaldocument[SI-]{\ntresponseauxdir/\ntresponseauxprefix SupportingInformation}
+```
+
+以上须配合项目已有的 `xr`/`xr-hyper` 设置。模块不会自动修改这些引用。
+项目使用的 `.sty`、`.cls` 和宏仍随论文源码保留，不依赖已安装的 Python 包来供 TeX 查找。
+辅助目录名称不支持 `%`、花括号、`^^` 或换行；含空格及通常的项目 `#` 路径可保留。
+引擎支持 `pdflatex`、`xelatex`、`lualatex`，可通过 `latexmk` 参数指定可执行文件。
+
+### 本地打包和发布
+
+```powershell
+python -m build
+python -m twine check dist/norfetool-1.6.0.tar.gz dist/norfetool-1.6.0-py3-none-any.whl
+python -m twine upload --repository pypi dist/norfetool-1.6.0.tar.gz dist/norfetool-1.6.0-py3-none-any.whl
+```
+
+上传时按提示输入用户名 `__token__` 和项目的 PyPI API token；不要将 token 写进脚本或命令行。
+只上传本轮两个文件，避免将 `dist` 中保留的旧版本一起上传。
